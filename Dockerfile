@@ -1,35 +1,32 @@
-# Use PHP-FPM
-FROM php:8.4-fpm
+# Use Bitnami's official Laravel image as the base
+FROM bitnami/laravel:latest
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    nginx \
-    git \
-    curl \
-    zip \
-    unzip \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    libpq-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Set working directory
+WORKDIR /app
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo_pgsql pgsql mbstring exif pcntl bcmath gd zip
+# Copy composer files first (for build cache)
+COPY composer.json composer.lock ./
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Install dependencies (production only, optimize autoloader)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --no-progress
 
-# Copy project
-WORKDIR /var/www
+# Copy all application files
 COPY . .
 
-# Configure Nginx
-COPY ./nginx.conf /etc/nginx/nginx.conf
+# Ensure storage and cache directories are writable
+RUN chmod -R 775 storage bootstrap/cache
 
-# Expose HTTP port
-EXPOSE 80
+# Set Laravel environment variables (Render will override these)
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    APP_STORAGE_PATH=/app/storage \
+    PORT=8080
 
-# Start both services
-CMD service nginx start && php-fpm
+# Expose port for Render
+EXPOSE 8080
+
+# Update Nginx config to listen on the Render-assigned port
+RUN sed -i "s/listen 8080;/listen \$PORT;/" /opt/bitnami/nginx/conf/server_blocks/laravel-server-block.conf
+
+# Start PHP-FPM and Nginx in the foreground
+CMD ["nami", "start", "--foreground", "php-fpm", "nginx"]
