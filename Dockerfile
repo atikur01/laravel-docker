@@ -1,12 +1,9 @@
-# Use a PHP base image with FPM (choose appropriate version, e.g. 8.4 or 8.x)
+# Use PHP-FPM
 FROM php:8.4-fpm
 
-# Arguments for user creation (map host user to container)
-ARG USER=wwwuser
-ARG UID=1000
-
-# Install system dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
+    nginx \
     git \
     curl \
     zip \
@@ -15,34 +12,24 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
-    # any others you need
+    libpq-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions required by Laravel
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
+# Install PHP extensions
+RUN docker-php-ext-install pdo_pgsql pgsql mbstring exif pcntl bcmath gd zip
 
-# Install Composer (copy from official composer image)
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Create a non-root user (so file permissions are nicer)
-RUN useradd -G www-data,root -u ${UID} -d /home/${USER} ${USER} \
-    && mkdir -p /home/${USER}/.composer \
-    && chown -R ${USER}:${USER} /home/${USER}
-
-# Set working directory
+# Copy project
 WORKDIR /var/www
+COPY . .
 
-# Copy project files
-COPY . /var/www
+# Configure Nginx
+COPY ./nginx.conf /etc/nginx/nginx.conf
 
-# Change ownership to our user
-RUN chown -R ${USER}:${USER} /var/www
+# Expose HTTP port
+EXPOSE 80
 
-# Switch to non-root user
-USER ${USER}
-
-# Expose the port (if needed)
-EXPOSE 9000
-
-# Default command
-CMD ["php-fpm"]
+# Start both services
+CMD service nginx start && php-fpm
