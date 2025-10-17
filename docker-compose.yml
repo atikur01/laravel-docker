@@ -1,36 +1,28 @@
-version: "3.8"
+version: '3.9'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        USER: wwwuser
-        UID: 1000
-    image: laravel12-app
-    container_name: laravel_app
-    restart: unless-stopped
-    working_dir: /var/www
+    build: .
     volumes:
-      - ./:/var/www
-    # Remove "depends_on: db" since you're using Supabase
-    environment:
-      DB_CONNECTION: pgsql
-      DB_HOST: aws-1-ap-southeast-1.pooler.supabase.com
-      DB_PORT: 5432
-      DB_DATABASE: postgres
-      DB_USERNAME: postgres.gosldezjommpxzmlsfig
-      DB_PASSWORD: dpEe_cZd2Uxirfu
+      - .:/var/www
+    depends_on:
+      - db
 
-  nginx:
+  web:
     image: nginx:alpine
-    container_name: laravel_nginx
-    restart: unless-stopped
     ports:
-      - "8000:80"
+      - "8080:80"
     volumes:
-      - ./:/var/www
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - .:/var/www
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: laravel
+      POSTGRES_USER: laravel
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
